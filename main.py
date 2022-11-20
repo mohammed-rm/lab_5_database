@@ -1,8 +1,10 @@
+import csv
 import itertools
 import sqlite3
 import xml.etree.ElementTree as ET
 
 
+# Question 1
 def create_tables(connexion):
     cur = connexion.cursor()
 
@@ -29,6 +31,7 @@ def create_tables(connexion):
     cur.close()
 
 
+# Question 1
 def fill_region_from_csv(connexion):
     with open('csv_files/regions.csv', 'r') as f:
         lines = f.readlines()[8:]
@@ -48,6 +51,7 @@ def fill_region_from_csv(connexion):
     connexion.commit()
 
 
+# Question 1
 def fill_departement_from_csv(connexion):
     with open('csv_files/departements.csv', 'r') as f:
         lines = f.readlines()[8:]
@@ -69,6 +73,7 @@ def fill_departement_from_csv(connexion):
     connexion.commit()
 
 
+# Question 1
 def fill_commune_from_csv(connexion):
     with open('csv_files/communes.csv', 'r') as f:
         lines = f.readlines()[8:]
@@ -92,18 +97,21 @@ def fill_commune_from_csv(connexion):
     connexion.commit()
 
 
+# Question 2 : Régions
 def compute_regions_population(connexion):
     cur = connexion.cursor()
     cur.execute("SELECT nom_region, SUM(population_totale) FROM Communes GROUP BY code_region")
     return cur.fetchall()
 
 
+# Question 2 : Régions
 def get_regions_population(connexion):
     cur = connexion.cursor()
     cur.execute("SELECT nom_region, population_totale FROM Regions ORDER BY code_region")
     return cur.fetchall()
 
 
+# Question 2 : Régions
 def compare_regions_population(connexion):
     regions_population = get_regions_population(connexion)
     regions_population_computed = compute_regions_population(connexion)
@@ -112,18 +120,21 @@ def compare_regions_population(connexion):
             f"{computed_region[0]:30}: {computed_region[1]:#,} vs {region[1]:#,} {'OK' if computed_region[1] == region[1] else 'ERROR'}")
 
 
+# Question 2 : Départements
 def compute_departement_population(connexion):
     cur = connexion.cursor()
     cur.execute("SELECT SUM(population_totale) FROM Communes GROUP BY code_departement")
     return cur.fetchall()
 
 
+# Question 2 : Départements
 def get_departement_population(connexion):
     cur = connexion.cursor()
     cur.execute("SELECT nom_departement, population_totale FROM Departements ORDER BY code_departement")
     return cur.fetchall()
 
 
+# Question 2 : Départements
 def compare_departement_population(connexion):
     departement_population = get_departement_population(connexion)
     departement_population_computed = compute_departement_population(connexion)
@@ -132,6 +143,7 @@ def compare_departement_population(connexion):
             f"{departement[0]:30}: {computed_departement[0]:#,} vs {departement[1]:#,} {'OK' if computed_departement[0] == departement[1] else 'ERROR'}")
 
 
+# Question 3
 def get_communes_with_same_name_and_different_departements(connexion):
     all_communes = dict()
     expected_final_result = dict()
@@ -149,6 +161,7 @@ def get_communes_with_same_name_and_different_departements(connexion):
     return expected_final_result
 
 
+# Question 4
 def save_database_to_xml(connexion):
     cur = connexion.cursor()
     cur.execute("SELECT * FROM Regions")
@@ -202,6 +215,7 @@ def save_database_to_xml(connexion):
     tree.write('database.xml')
 
 
+# Question 4
 def fill_database_from_xml(connexion):
     cur = connexion.cursor()
     tree = ET.parse('database.xml')
@@ -221,22 +235,60 @@ def fill_database_from_xml(connexion):
     connexion.commit()
 
 
+# Question 5
+def add_new_regions_column_to_departements(connexion):
+    csv_line = []
+    with open('csv_files/nouvelles_regions_2.csv', 'r') as csvfile:
+        reader = csv.reader(csvfile, delimiter=';')
+        next(reader)
+        for row in reader:
+            csv_line.append(row)
+
+    cur = connexion.cursor()
+    cur.execute("ALTER TABLE Departements ADD COLUMN nom_nouvelle_region TEXT")
+    cur.execute("ALTER TABLE Departements ADD COLUMN code_nouvelle_region INTEGER")
+    for line in csv_line:
+        cur.execute("UPDATE Departements SET nom_nouvelle_region = ? WHERE nom_region = ?", (line[1], line[0]))
+        cur.execute("UPDATE Departements SET code_nouvelle_region = ? WHERE nom_region = ?", (int(line[2]), line[0]))
+    connexion.commit()
+
+
+# Question 5
+def compute_new_regions_population(connexion):
+    cur = connexion.cursor()
+    cur.execute(
+        "SELECT nom_nouvelle_region, code_nouvelle_region, SUM(population_totale) FROM Departements GROUP BY code_nouvelle_region")
+    new_regions = cur.fetchall()
+
+    return new_regions
+
+
 if __name__ == '__main__':
     conn = sqlite3.connect('database.sqlite')
 
+    # Question 1
     create_tables(connexion=conn)
     # fill_region_from_csv(connexion=conn)
     # fill_departement_from_csv(connexion=conn)
     # fill_commune_from_csv(connexion=conn)
 
-    # print(compute_departement_population(connexion=conn))
-    # print(get_departement_population(connexion=conn))
+    # Question 2
     # compare_regions_population(connexion=conn)
     # compare_departement_population(connexion=conn)
 
-    # print(get_communes_with_same_name_and_different_departements(connexion=conn))
+    # Question 3
+    # for communes, departement in get_communes_with_same_name_and_different_departements(connexion=conn).items():
+    #     print(f"Commune : {communes:20} Départements : {departement}")
 
+    # Question 4
     # save_database_to_xml(connexion=conn)
     # fill_database_from_xml(connexion=conn)
+
+    # Question 5
+    # add_new_regions_column_to_departements(connexion=conn)
+    # print(f"{Fore.LIGHTYELLOW_EX}{'Nouvelle région':40} {'Nouveau Code'}\t {'Population'}")
+    # for regions in compute_new_regions_population(connexion=conn):
+    #     print(
+    #         f"{Fore.LIGHTCYAN_EX}{regions[0]:40} {Fore.MAGENTA}{regions[1]}\t\t\t\t {Fore.GREEN}{regions[2]:,}{Style.RESET_ALL}")
 
     conn.close()
